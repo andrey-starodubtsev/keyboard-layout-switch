@@ -123,23 +123,23 @@ static int SystemOrder(HKL *out)
 {
     HKL sys[MAX_LAYOUTS];
     int ns = GetKeyboardLayoutList(MAX_LAYOUTS, sys), n = 0;
-    static const WCHAR profile[] = L"Control Panel\\International\\User Profile";
+    static const TCHAR profile[] = TEXT("Control Panel\\International\\User Profile");
     HKEY key;
-    WCHAR langs[1024] = {0};
-    DWORD size = sizeof(langs) - sizeof(WCHAR);
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, profile, 0, KEY_READ, &key) == ERROR_SUCCESS) {
-        if (RegQueryValueExW(key, L"Languages", NULL, NULL, (BYTE *)langs, &size) != ERROR_SUCCESS)
+    TCHAR langs[1024] = {0};
+    DWORD size = sizeof(langs) - sizeof(TCHAR);
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, profile, 0, KEY_READ, &key) == ERROR_SUCCESS) {
+        if (RegQueryValueEx(key, TEXT("Languages"), NULL, NULL, (BYTE *)langs, &size) != ERROR_SUCCESS)
             langs[0] = 0;
-        for (const WCHAR *lang = langs; *lang; lang += lstrlenW(lang) + 1) {
-            WCHAR sub[128], name[64], tag[64];
+        for (const TCHAR *lang = langs; *lang; lang += lstrlen(lang) + 1) {
+            TCHAR sub[128], name[64], tag[64];
             HKEY lk;
-            lstrcpynW(tag, lang, 64);
-            wsprintfW(sub, L"%s\\%s", profile, lang);
+            lstrcpyn(tag, lang, 64);
+            wsprintf(sub, TEXT("%s\\%s"), profile, lang);
             int before = n;
-            if (RegOpenKeyExW(HKEY_CURRENT_USER, sub, 0, KEY_READ, &lk) == ERROR_SUCCESS) {
-                for (DWORD i = 0, len = 64; RegEnumValueW(lk, i, name, &len, NULL, NULL, NULL, NULL) == ERROR_SUCCESS; i++, len = 64) {
-                    if (len == 13 && name[4] == L':') {
-                        HKL h = LoadKeyboardLayoutW(name + 5, 0);
+            if (RegOpenKeyEx(HKEY_CURRENT_USER, sub, 0, KEY_READ, &lk) == ERROR_SUCCESS) {
+                for (DWORD i = 0, len = 64; RegEnumValue(lk, i, name, &len, NULL, NULL, NULL, NULL) == ERROR_SUCCESS; i++, len = 64) {
+                    if (len == 13 && name[4] == TEXT(':')) {
+                        HKL h = LoadKeyboardLayout(name + 5, 0);
                         if (h && InList(sys, ns, h) && !InList(out, n, h) && n < MAX_LAYOUTS) out[n++] = h;
                     }
                 }
@@ -147,8 +147,8 @@ static int SystemOrder(HKL *out)
             }
             if (n == before) {
                 // No explicit input method: the language's default layout.
-                for (WCHAR *c = tag; *c; c++)
-                    if (*c == L'-') { *c = 0; break; }
+                for (TCHAR *c = tag; *c; c++)
+                    if (*c == TEXT('-')) { *c = 0; break; }
                 LCID lc = LocaleNameToLCID(tag, 0);
                 for (int j = 0; lc && j < ns; j++)
                     if (PRIMARYLANGID(LOWORD((UINT_PTR)sys[j])) == PRIMARYLANGID(lc) &&
@@ -276,7 +276,7 @@ static void Press(BOOL backward)
     if (g_flyout)
         SteerFlyout();
     else if (g_fg)
-        PostMessageW(g_fg, WM_INPUTLANGCHANGEREQUEST, 0, (LPARAM)g_sel);
+        PostMessage(g_fg, WM_INPUTLANGCHANGEREQUEST, 0, (LPARAM)g_sel);
 }
 
 static LRESULT CALLBACK KbHook(int code, WPARAM wp, LPARAM lp)
@@ -339,24 +339,24 @@ static LRESULT CALLBACK KbHook(int code, WPARAM wp, LPARAM lp)
 
 static void AddTrayIcon(HWND wnd)
 {
-    NOTIFYICONDATAW nid = {0};
+    NOTIFYICONDATA nid = {0};
     nid.cbSize = sizeof(nid);
     nid.hWnd = wnd;
     nid.uID = 1;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAY;
-    nid.hIcon = LoadIconW(NULL, MAKEINTRESOURCEW(32512)); // IDI_APPLICATION
-    lstrcpyW(nid.szTip, L"Layout Toggle (Alt+Shift)");
-    Shell_NotifyIconW(NIM_ADD, &nid);
+    nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    lstrcpy(nid.szTip, TEXT("Layout Toggle (Alt+Shift)"));
+    Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
 static void RemoveTrayIcon(HWND wnd)
 {
-    NOTIFYICONDATAW nid = {0};
+    NOTIFYICONDATA nid = {0};
     nid.cbSize = sizeof(nid);
     nid.hWnd = wnd;
     nid.uID = 1;
-    Shell_NotifyIconW(NIM_DELETE, &nid);
+    Shell_NotifyIcon(NIM_DELETE, &nid);
 }
 
 static LRESULT CALLBACK WndProc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -364,7 +364,7 @@ static LRESULT CALLBACK WndProc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
     static UINT taskbarCreated;
     switch (msg) {
     case WM_CREATE:
-        taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+        taskbarCreated = RegisterWindowMessage(TEXT("TaskbarCreated"));
         AddTrayIcon(wnd);
         SetTimer(wnd, TIMER_POLL, 100, NULL);
         return 0;
@@ -383,11 +383,11 @@ static LRESULT CALLBACK WndProc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
             POINT pt;
             GetCursorPos(&pt);
             HMENU m = CreatePopupMenu();
-            AppendMenuW(m, MF_STRING, ID_EXIT, L"Exit");
+            AppendMenu(m, MF_STRING, ID_EXIT, TEXT("Exit"));
             SetForegroundWindow(wnd);
             if (TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, wnd, NULL) == ID_EXIT)
                 DestroyWindow(wnd);
-            PostMessageW(wnd, WM_NULL, 0, 0);
+            PostMessage(wnd, WM_NULL, 0, 0);
             DestroyMenu(m);
         }
         return 0;
@@ -400,36 +400,36 @@ static LRESULT CALLBACK WndProc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
     default:
         if (msg == taskbarCreated && msg) { AddTrayIcon(wnd); return 0; }
     }
-    return DefWindowProcW(wnd, msg, wp, lp);
+    return DefWindowProc(wnd, msg, wp, lp);
 }
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmd, int show)
 {
     (void)prevInst; (void)cmd; (void)show;
-    HANDLE mutex = CreateMutexW(NULL, TRUE, L"Local\\LayoutToggle_SingleInstance");
+    HANDLE mutex = CreateMutex(NULL, TRUE, TEXT("Local\\LayoutToggle_SingleInstance"));
     if (GetLastError() == ERROR_ALREADY_EXISTS) return 0;
 
-    WNDCLASSW wc = {0};
+    WNDCLASS wc = {0};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = inst;
-    wc.lpszClassName = L"LayoutToggleWnd";
-    RegisterClassW(&wc);
+    wc.lpszClassName = TEXT("LayoutToggleWnd");
+    RegisterClass(&wc);
 
-    g_wnd = CreateWindowExW(0, wc.lpszClassName, L"LayoutToggle", 0, 0, 0, 0, 0,
+    g_wnd = CreateWindowEx(0, wc.lpszClassName, TEXT("LayoutToggle"), 0, 0, 0, 0, 0,
                             HWND_MESSAGE, NULL, inst, NULL);
     if (!g_wnd) return 1;
 
     Track();
-    g_hook = SetWindowsHookExW(WH_KEYBOARD_LL, KbHook, inst, 0);
+    g_hook = SetWindowsHookEx(WH_KEYBOARD_LL, KbHook, inst, 0);
     if (!g_hook) {
         DestroyWindow(g_wnd);
         return 1;
     }
 
     MSG m;
-    while (GetMessageW(&m, NULL, 0, 0) > 0) {
+    while (GetMessage(&m, NULL, 0, 0) > 0) {
         TranslateMessage(&m);
-        DispatchMessageW(&m);
+        DispatchMessage(&m);
     }
     UnhookWindowsHookEx(g_hook);
     CloseHandle(mutex);
@@ -440,5 +440,5 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmd, int show)
 __attribute__((force_align_arg_pointer))
 void WinMainCRTStartup(void)
 {
-    ExitProcess((UINT)WinMain(GetModuleHandleW(NULL), NULL, NULL, SW_SHOWDEFAULT));
+    ExitProcess((UINT)WinMain(GetModuleHandle(NULL), NULL, NULL, SW_SHOWDEFAULT));
 }
