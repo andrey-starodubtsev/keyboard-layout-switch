@@ -1,4 +1,5 @@
 @echo off
-gcc -Wall -Os -s -mwindows -o LayoutToggle.exe LayoutToggle.c -luser32 -lshell32 -ladvapi32 || exit /b 1
+set cflags=-Wall -Wextra -Os -s -mwindows -DUNICODE -D_UNICODE -fno-stack-protector -fno-tree-loop-distribute-patterns -fomit-frame-pointer -static -nostdlib -Wl,--gc-sections -Wl,--strip-all -Wl,-e,WinMainCRTStartup
+gcc %cflags% -o LayoutToggle.exe LayoutToggle.c -lkernel32 -luser32 -lshell32 -ladvapi32 || exit /b 1
 if not exist tests mkdir tests
-gcc -Wall -Os -s -mwindows -DTESTING -o tests\LayoutToggle_test.exe LayoutToggle.c -luser32 -lshell32 -ladvapi32 || exit /b 1
+gcc %cflags% -DTESTING -o tests\LayoutToggle_test.exe LayoutToggle.c -lkernel32 -luser32 -lshell32 -ladvapi32 || exit /b 1

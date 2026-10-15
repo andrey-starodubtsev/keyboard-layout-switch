@@ -435,3 +435,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmd, int show)
     CloseHandle(mutex);
     return 0;
 }
+
+// No CRT: the process entry point gets no arguments and must exit explicitly.
+__attribute__((force_align_arg_pointer))
+void WinMainCRTStartup(void)
+{
+    ExitProcess((UINT)WinMain(GetModuleHandleW(NULL), NULL, NULL, SW_SHOWDEFAULT));
+}
