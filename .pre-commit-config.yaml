@@ -1,0 +1,18 @@
+# Install: pip install pre-commit && pre-commit install
+# Requires clang-format and clang-tidy (LLVM) on PATH.
+repos:
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: clang-format
+        entry: clang-format -i --style=file
+        language: system
+        files: \.(c|h)$
+
+      - id: clang-tidy
+        name: clang-tidy
+        entry: clang-tidy --quiet
+        language: system
+        files: \.(c|h)$
+        # pre-commit appends file names to args, so flags must use --extra-arg.
+        args: [--extra-arg=-DUNICODE, --extra-arg=-D_UNICODE]
