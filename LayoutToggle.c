@@ -11,6 +11,7 @@
 #include <shellapi.h>
 
 #define WM_TRAY (WM_APP + 1)
+#define IDI_APP 1  // must match LayoutToggle.rc
 #define ID_EXIT 1
 #define TIMER_POLL 1
 #define TIMER_FLYOUT 2
@@ -449,7 +450,10 @@ static void AddTrayIcon(HWND wnd)
     nid.uID = 1;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAY;
-    nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    nid.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_APP));
+    if (!nid.hIcon) {
+        nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    }
     lstrcpy(nid.szTip, TEXT("Layout Toggle (Alt+Shift)"));
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
