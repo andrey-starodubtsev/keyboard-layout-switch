@@ -125,18 +125,33 @@ static int SystemOrder(HKL *out)
     int ns = GetKeyboardLayoutList(MAX_LAYOUTS, sys), n = 0;
     static const TCHAR profile[] = TEXT("Control Panel\\International\\User Profile");
     HKEY key;
-    TCHAR langs[1024] = {0};
-    DWORD size = sizeof(langs) - sizeof(TCHAR);
+    TCHAR *langs = NULL;
+    DWORD size = 0, type = 0;
     if (RegOpenKeyEx(HKEY_CURRENT_USER, profile, 0, KEY_READ, &key) == ERROR_SUCCESS) {
-        if (RegQueryValueEx(key, TEXT("Languages"), NULL, NULL, (BYTE *)langs, &size) != ERROR_SUCCESS)
-            langs[0] = 0;
+        if (RegQueryValueEx(key, TEXT("Languages"), NULL, &type, NULL, &size) == ERROR_SUCCESS &&
+            type == REG_MULTI_SZ) {
+            // Two extra zeroed characters guarantee the list is terminated.
+            langs = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size + 2 * sizeof(TCHAR));
+            if (langs && RegQueryValueEx(key, TEXT("Languages"), NULL, NULL, (BYTE *)langs, &size) != ERROR_SUCCESS) {
+                HeapFree(GetProcessHeap(), 0, langs);
+                langs = NULL;
+            }
+        }
+        RegCloseKey(key);
+    }
+    if (langs) {
         for (const TCHAR *lang = langs; *lang; lang += lstrlen(lang) + 1) {
-            TCHAR sub[128], name[64], tag[64];
+            TCHAR name[64], tag[64];
             HKEY lk;
             lstrcpyn(tag, lang, 64);
+            SIZE_T subLen = lstrlen(profile) + 1 + lstrlen(lang) + 1;
+            TCHAR *sub = HeapAlloc(GetProcessHeap(), 0, subLen * sizeof(TCHAR));
+            if (!sub) break;
             wsprintf(sub, TEXT("%s\\%s"), profile, lang);
             int before = n;
-            if (RegOpenKeyEx(HKEY_CURRENT_USER, sub, 0, KEY_READ, &lk) == ERROR_SUCCESS) {
+            LONG rc = RegOpenKeyEx(HKEY_CURRENT_USER, sub, 0, KEY_READ, &lk);
+            HeapFree(GetProcessHeap(), 0, sub);
+            if (rc == ERROR_SUCCESS) {
                 for (DWORD i = 0, len = 64; RegEnumValue(lk, i, name, &len, NULL, NULL, NULL, NULL) == ERROR_SUCCESS; i++, len = 64) {
                     if (len == 13 && name[4] == TEXT(':')) {
                         HKL h = LoadKeyboardLayout(name + 5, 0);
@@ -155,7 +170,7 @@ static int SystemOrder(HKL *out)
                         !InList(out, n, sys[j]) && n < MAX_LAYOUTS) { out[n++] = sys[j]; break; }
             }
         }
-        RegCloseKey(key);
+        HeapFree(GetProcessHeap(), 0, langs);
     }
     for (int j = 0; j < ns; j++)
         if (!InList(out, n, sys[j]) && n < MAX_LAYOUTS) out[n++] = sys[j];
