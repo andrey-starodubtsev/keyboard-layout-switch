@@ -10,7 +10,7 @@ A tiny Windows tray app (single C file, no CRT) that makes **Alt+Shift** switch 
 - **Holding Alt** for a moment opens the standard Windows layout flyout (the app sends Win+Space on your behalf) and steers its highlight to the selected layout.
 - Alt+Shift combined with any other key (e.g. Alt+Shift+Tab) is left alone.
 
-Nothing is persisted. The low-level keyboard hook is the only "modification"; exiting the app restores default Windows behavior.
+Nothing is persisted, except the optional **Autostart** tray menu item, which adds/removes a `LayoutToggle` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. The low-level keyboard hook is the only "modification"; exiting the app restores default Windows behavior.
 
 ## Usage
 

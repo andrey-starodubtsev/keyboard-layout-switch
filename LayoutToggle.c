@@ -13,6 +13,7 @@
 #define WM_TRAY (WM_APP + 1)
 #define IDI_APP 1  // must match LayoutToggle.rc
 #define ID_EXIT 1
+#define ID_AUTOSTART 2
 #define TIMER_POLL 1
 #define TIMER_FLYOUT 2
 #define TIMER_READY 3
@@ -458,6 +459,39 @@ static void AddTrayIcon(HWND wnd)
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
+#define RUN_KEY TEXT("Software\\Microsoft\\Windows\\CurrentVersion\\Run")
+#define RUN_VALUE TEXT("LayoutToggle")
+
+static BOOL AutostartEnabled(void)
+{
+    HKEY key;
+    BOOL found = FALSE;
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_READ, &key) == ERROR_SUCCESS) {
+        found = RegQueryValueEx(key, RUN_VALUE, NULL, NULL, NULL, NULL) == ERROR_SUCCESS;
+        RegCloseKey(key);
+    }
+    return found;
+}
+
+static void SetAutostart(BOOL enable)
+{
+    HKEY key;
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS) return;
+    if (enable) {
+        TCHAR path[MAX_PATH + 2];
+        DWORD n = GetModuleFileName(NULL, path + 1, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            path[0] = TEXT('"');
+            path[n + 1] = TEXT('"');
+            path[n + 2] = 0;
+            RegSetValueEx(key, RUN_VALUE, 0, REG_SZ, (const BYTE*)path, (DWORD)((n + 3) * sizeof(TCHAR)));
+        }
+    } else {
+        RegDeleteValue(key, RUN_VALUE);
+    }
+    RegCloseKey(key);
+}
+
 static void RemoveTrayIcon(HWND wnd)
 {
     NOTIFYICONDATA nid = {0};
@@ -491,9 +525,13 @@ static LRESULT CALLBACK WndProc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
                 POINT pt;
                 GetCursorPos(&pt);
                 HMENU m = CreatePopupMenu();
+                AppendMenu(m, MF_STRING | (AutostartEnabled() ? MF_CHECKED : 0), ID_AUTOSTART, TEXT("Autostart"));
                 AppendMenu(m, MF_STRING, ID_EXIT, TEXT("Exit"));
                 SetForegroundWindow(wnd);
-                if (TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, wnd, NULL) == ID_EXIT) {
+                int cmd = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, wnd, NULL);
+                if (cmd == ID_AUTOSTART) {
+                    SetAutostart(!AutostartEnabled());
+                } else if (cmd == ID_EXIT) {
                     DestroyWindow(wnd);
                 }
                 PostMessage(wnd, WM_NULL, 0, 0);
