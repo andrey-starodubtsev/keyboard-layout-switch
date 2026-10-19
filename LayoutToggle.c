@@ -553,11 +553,58 @@ static LRESULT CALLBACK WndProc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
     return DefWindowProc(wnd, msg, wp, lp);
 }
 
+#ifndef TESTING
+static BOOL HasDetachedFlag(LPCTSTR cmd)
+{
+    static const TCHAR flag[] = TEXT("--detached");
+    int len = lstrlen(cmd);
+    int flen = (int)(sizeof(flag) / sizeof(flag[0])) - 1;
+    for (int i = 0; i + flen <= len; i++) {
+        int j = 0;
+        while (j < flen && cmd[i + j] == flag[j]) {
+            j++;
+        }
+        if (j == flen) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+#endif
+
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmd, int show)
 {
     (void)prevInst;
     (void)cmd;
     (void)show;
+    // Detach from the launching console so closing it doesn't terminate us.
+    FreeConsole();
+#ifndef TESTING
+    // Terminals may kill their job's process tree on close; respawn outside of it.
+    if (!HasDetachedFlag(GetCommandLine())) {
+        TCHAR path[MAX_PATH];
+        TCHAR line[MAX_PATH + 16];
+        DWORD n = GetModuleFileName(NULL, path, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            line[0] = TEXT('"');
+            lstrcpy(line + 1, path);
+            lstrcat(line, TEXT("\" --detached"));
+            STARTUPINFO si = {0};
+            si.cb = sizeof(si);
+            PROCESS_INFORMATION pi;
+            DWORD flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
+            BOOL ok = CreateProcess(NULL, line, NULL, NULL, FALSE, flags | CREATE_BREAKAWAY_FROM_JOB, NULL, NULL, &si, &pi);
+            if (!ok) {
+                ok = CreateProcess(NULL, line, NULL, NULL, FALSE, flags, NULL, NULL, &si, &pi);
+            }
+            if (ok) {
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+                return 0;
+            }
+        }
+    }
+#endif
     HANDLE mutex = CreateMutex(NULL, TRUE, TEXT("Local\\LayoutToggle_SingleInstance"));
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         return 0;
